@@ -1,2 +1,3 @@
-DELETE FROM assistant
+DELETE
+FROM assistant
 WHERE name = 'Patrik';

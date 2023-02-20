@@ -4,7 +4,6 @@ VALUES ('Invisibility', 'Turn invisible'),
        ('Mind read', 'Read minds'),
        ('Breathe', 'Able to breathe');
 
-
 INSERT INTO superhero_power(superhero_id, power_id)
 VALUES (1, 1),
        (1, 2),
