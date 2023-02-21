@@ -14,19 +14,16 @@ public class EaJava2Application implements ApplicationRunner {
     ChinookDAO chinookDAO;
 
     public static void main(String[] args) {
-
         SpringApplication.run(EaJava2Application.class, args);
-
-
     }
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
+        System.out.println(chinookDAO.getMostPopularGenre(chinookDAO.getById(1)));
         System.out.println(chinookDAO.getById(1));
         System.out.println(chinookDAO.getAllCustomers());
         System.out.println(chinookDAO.queryByName("Luís"));
         System.out.println(chinookDAO.getHighestSpendingCustomer());
         System.out.println(chinookDAO.getCountryWithMostCustomers());
     }
-
 }

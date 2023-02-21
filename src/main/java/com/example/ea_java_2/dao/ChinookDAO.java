@@ -4,6 +4,7 @@ import com.example.ea_java_2.models.Customer;
 import com.example.ea_java_2.models.CustomerCountry;
 import com.example.ea_java_2.models.CustomerGenre;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Component;
 
 import java.sql.*;
@@ -178,20 +179,37 @@ public class ChinookDAO {
         return null;
     }
 
-//    public CustomerGenre getMostPopularGenre(Customer forCustomer) {
-//        String sql = "SELECT name " +
-//                "FROM genre " +
-//                "LEFT JOIN customer ON customer_id="
-//
-//        try (Connection conn = DriverManager.getConnection(url, username, password)) {
-//            PreparedStatement statement = conn.prepareStatement(sql);
-//            ResultSet result = statement.executeQuery();
-//            return extractCustomers(result).get(0);
-//        } catch (SQLException e) {
-//            e.printStackTrace();
-//        }
-//        return null;
-//    }
+    public Pair<Customer, String> getMostPopularGenre(Customer forCustomer) {
+        String sql = "SELECT customer.customer_id,first_name, last_name, country, postal_code, phone, email, track.genre_id, genre.name, COUNT(track.genre_id) AS genrecount FROM customer " +
+                "LEFT JOIN invoice ON customer.customer_id=invoice.customer_id " +
+                "LEFT JOIN invoice_line ON invoice_line.invoice_id=invoice.invoice_id " +
+                "LEFT JOIN track ON track.track_id=invoice_line.track_id " +
+                "LEFT JOIN genre ON genre.genre_id=track.genre_id " +
+                "WHERE customer.customer_id=? " +
+                "GROUP BY track.genre_id, customer.customer_id, genre.name " +
+                "ORDER BY genrecount DESC " +
+                "LIMIT 1";
+
+        try (Connection conn = DriverManager.getConnection(url, username, password)) {
+            PreparedStatement statement = conn.prepareStatement(sql);
+            statement.setInt(1, forCustomer.id());
+            ResultSet result = statement.executeQuery();
+            result.next();
+            Customer c = new Customer(
+                    result.getInt("customer_id"),
+                    result.getString("first_name"),
+                    result.getString("last_name"),
+                    result.getString("postal_code"),
+                    new CustomerCountry(result.getString("country")),
+                    result.getString("phone"),
+                    result.getString("email")
+            );
+            return Pair.of(c, result.getString("name"));
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 
 
     private List<Customer> getCustomers(String sql) {
