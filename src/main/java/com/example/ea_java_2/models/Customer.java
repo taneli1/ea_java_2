@@ -1,5 +1,8 @@
 package com.example.ea_java_2.models;
 
+/**
+ * Represents information about the customer
+ */
 public record Customer(
         int id,
         String firstName,
