@@ -1,8 +1,8 @@
 package com.example.ea_java_2.dao;
 
+import com.example.ea_java_2.exception.CustomException;
 import com.example.ea_java_2.models.Customer;
 import com.example.ea_java_2.models.CustomerCountry;
-import com.example.ea_java_2.models.CustomerGenre;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Component;
@@ -27,23 +27,16 @@ public class ChinookDAO {
         this.password = password;
     }
 
-    public void test() {
-        try (Connection conn = DriverManager.getConnection(url, username, password);) {
-            System.out.println("Connected to Postgres...");
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
     /**
      * Return all customers from the database.
      *
      * @return list of customers.
      */
-    public List<Customer> getAllCustomers() {
+    public List<Customer> getAllCustomers() throws CustomException {
         String sql = "SELECT * FROM customer";
         return getCustomers(sql);
     }
+
 
     /**
      * Return a single customer via it's id.
@@ -51,44 +44,55 @@ public class ChinookDAO {
      * @param id of the customer
      * @return customer
      */
-    public Customer getById(int id) {
+    public Customer getById(int id) throws CustomException {
         String sql = "SELECT * FROM customer WHERE customer_id = ?";
-        try (Connection conn = DriverManager.getConnection(url, username, password)) {
+        try (Connection conn = openConnection()) {
             PreparedStatement statement = conn.prepareStatement(sql);
             statement.setInt(1, id);
             ResultSet result = statement.executeQuery();
             return extractCustomers(result).get(0);
         } catch (SQLException e) {
-            e.printStackTrace();
+            throw new CustomException("Something went wrong");
         }
-        return null;
     }
 
-    public List<Customer> queryByName(String name) {
+    /**
+     * Query customers by name.
+     *
+     * @param name to query with
+     * @return list of customers
+     */
+    public List<Customer> queryByName(String name) throws CustomException {
         String sql = "SELECT * FROM customer WHERE first_name LIKE ?";
-        try (Connection conn = DriverManager.getConnection(url, username, password)) {
+        try (Connection conn = openConnection()) {
             PreparedStatement statement = conn.prepareStatement(sql);
             statement.setString(1, name + "%");
             ResultSet result = statement.executeQuery();
             return extractCustomers(result);
         } catch (SQLException e) {
             e.printStackTrace();
+            throw new CustomException("Something went wrong");
         }
-        return null;
     }
 
-    public List<Customer> getPaged(int limit, int offset) {
+    /**
+     * Returns a list of n customers.
+     *
+     * @param limit  max number of customers
+     * @param offset starting from
+     * @return list of customers
+     */
+    public List<Customer> getPaged(int limit, int offset) throws CustomException {
         String sql = "SELECT * FROM customer ORDER BY customer_id LIMIT ? OFFSET ?";
-        try (Connection conn = DriverManager.getConnection(url, username, password)) {
+        try (Connection conn = openConnection()) {
             PreparedStatement statement = conn.prepareStatement(sql);
             statement.setInt(1, limit);
             statement.setInt(2, offset);
             ResultSet result = statement.executeQuery();
             return extractCustomers(result);
         } catch (SQLException e) {
-            e.printStackTrace();
+            throw new CustomException("Something went wrong");
         }
-        return null;
     }
 
     /**
@@ -97,22 +101,10 @@ public class ChinookDAO {
      * @param customer to create
      * @return created customer
      */
-    public Customer createCustomer(Customer customer) {
-        String sql = "INSERT INTO customer(first_name, last_name, postal_code, country, phone, email) values (?,?,?,?,?,?)";
-        try (Connection conn = DriverManager.getConnection(url, username, password)) {
-            PreparedStatement statement = conn.prepareStatement(sql);
-            statement.setString(1, customer.firstName());
-            statement.setString(2, customer.lastName());
-            statement.setString(3, customer.postalCode());
-            statement.setString(4, customer.country().name());
-            statement.setString(5, customer.phone());
-            statement.setString(6, customer.email());
-            ResultSet result = statement.executeQuery();
-            return extractCustomers(result).get(0);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return null;
+    public Customer createCustomer(Customer customer) throws CustomException {
+        String sql = "INSERT INTO customer(first_name, last_name, postal_code, country, phone, email) " +
+                "VALUES (?,?,?,?,?,?)";
+        return customerQuery(customer, sql);
     }
 
     /**
@@ -121,12 +113,15 @@ public class ChinookDAO {
      * @param customer to update
      * @return updated customer
      */
-    public Customer updateCustomer(Customer customer) {
+    public Customer updateCustomer(Customer customer) throws CustomException {
         String sql = "UPDATE customer " +
                 "SET first_name=?, last_name=?, postal_code=?, country=?, phone=?, email=? " +
                 "WHERE customer_id=?";
+        return customerQuery(customer, sql);
+    }
 
-        try (Connection conn = DriverManager.getConnection(url, username, password)) {
+    private Customer customerQuery(Customer customer, String sql) throws CustomException {
+        try (Connection conn = openConnection()) {
             PreparedStatement statement = conn.prepareStatement(sql);
             statement.setString(1, customer.firstName());
             statement.setString(2, customer.lastName());
@@ -137,31 +132,28 @@ public class ChinookDAO {
             ResultSet result = statement.executeQuery();
             return extractCustomers(result).get(0);
         } catch (SQLException e) {
-            e.printStackTrace();
+            throw new CustomException("Something went wrong");
         }
-        return null;
     }
 
-    public CustomerCountry getCountryWithMostCustomers() {
-        String sql = "SELECT country\n" +
-                "FROM customer GROUP BY customer.country \n" +
-                "ORDER BY COUNT(country) DESC\n" +
+    public CustomerCountry getCountryWithMostCustomers() throws CustomException {
+        String sql = "SELECT country " +
+                "FROM customer GROUP BY customer.country " +
+                "ORDER BY COUNT(country) DESC " +
                 "LIMIT 1;";
-
-        try (Connection conn = DriverManager.getConnection(url, username, password)) {
+        try (Connection conn = openConnection()) {
             PreparedStatement statement = conn.prepareStatement(sql);
             ResultSet result = statement.executeQuery();
             if (result.next()) {
                 return new CustomerCountry(result.getString("country"));
             }
-            throw new RuntimeException("No result");
+            throw new CustomException("No result");
         } catch (SQLException e) {
-            e.printStackTrace();
+            throw new CustomException("Something went wrong");
         }
-        return null;
     }
 
-    public Customer getHighestSpendingCustomer() {
+    public Customer getHighestSpendingCustomer() throws CustomException {
         String sql = "SELECT customer.customer_id, first_name, last_name, country, postal_code, phone, email, SUM(invoice.total) AS total " +
                 "FROM customer " +
                 "LEFT JOIN invoice ON customer.customer_id = invoice.customer_id " +
@@ -169,17 +161,16 @@ public class ChinookDAO {
                 "ORDER BY total DESC " +
                 "LIMIT 1 ";
 
-        try (Connection conn = DriverManager.getConnection(url, username, password)) {
+        try (Connection conn = openConnection()) {
             PreparedStatement statement = conn.prepareStatement(sql);
             ResultSet result = statement.executeQuery();
             return extractCustomers(result).get(0);
         } catch (SQLException e) {
-            e.printStackTrace();
+            throw new CustomException("Something went wrong");
         }
-        return null;
     }
 
-    public Pair<Customer, String> getMostPopularGenre(Customer forCustomer) {
+    public Pair<Customer, String> getMostPopularGenre(Customer forCustomer) throws CustomException {
         String sql = "SELECT customer.customer_id,first_name, last_name, country, postal_code, phone, email, track.genre_id, genre.name, COUNT(track.genre_id) AS genrecount FROM customer " +
                 "LEFT JOIN invoice ON customer.customer_id=invoice.customer_id " +
                 "LEFT JOIN invoice_line ON invoice_line.invoice_id=invoice.invoice_id " +
@@ -190,7 +181,7 @@ public class ChinookDAO {
                 "ORDER BY genrecount DESC " +
                 "LIMIT 1";
 
-        try (Connection conn = DriverManager.getConnection(url, username, password)) {
+        try (Connection conn = openConnection()) {
             PreparedStatement statement = conn.prepareStatement(sql);
             statement.setInt(1, forCustomer.id());
             ResultSet result = statement.executeQuery();
@@ -206,21 +197,19 @@ public class ChinookDAO {
             );
             return Pair.of(c, result.getString("name"));
         } catch (SQLException e) {
-            e.printStackTrace();
+            throw new CustomException("Something went wrong");
         }
-        return null;
     }
 
 
-    private List<Customer> getCustomers(String sql) {
+    private List<Customer> getCustomers(String sql) throws CustomException {
         try (Connection conn = DriverManager.getConnection(url, username, password)) {
             PreparedStatement statement = conn.prepareStatement(sql);
             ResultSet result = statement.executeQuery();
             return extractCustomers(result);
         } catch (SQLException e) {
-            e.printStackTrace();
+            throw new CustomException("Something went wrong");
         }
-        return null;
     }
 
     private List<Customer> extractCustomers(ResultSet resultSet) throws SQLException {
@@ -237,5 +226,9 @@ public class ChinookDAO {
             ));
         }
         return customers;
+    }
+
+    private Connection openConnection() throws SQLException {
+        return DriverManager.getConnection(url, username, password);
     }
 }
