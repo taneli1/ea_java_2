@@ -6,13 +6,15 @@ import com.example.ea_java_2.models.CustomerCountry;
 import com.example.ea_java_2.models.CustomerGenre;
 import com.example.ea_java_2.models.CustomerSpender;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Component;
 
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Handles the database communication for the application.
+ */
 @Component
 public class ChinookDAO {
     private final String url;
@@ -101,28 +103,11 @@ public class ChinookDAO {
      * Create a customer with the parameter Customer's values. Id of the parameter object is ignored.
      *
      * @param customer to create
-     * @return created customer
+     * @return affected rows
      */
-    public Customer createCustomer(Customer customer) throws CustomException {
+    public int createCustomer(Customer customer) throws CustomException {
         String sql = "INSERT INTO customer(first_name, last_name, postal_code, country, phone, email) " +
                 "VALUES (?,?,?,?,?,?)";
-        return customerQuery(customer, sql);
-    }
-
-    /**
-     * Update a customer record. Replaces all the values with the ones provided by the parameter object.
-     *
-     * @param customer to update
-     * @return updated customer
-     */
-    public Customer updateCustomer(Customer customer) throws CustomException {
-        String sql = "UPDATE customer " +
-                "SET first_name=?, last_name=?, postal_code=?, country=?, phone=?, email=? " +
-                "WHERE customer_id=?";
-        return customerQuery(customer, sql);
-    }
-
-    private Customer customerQuery(Customer customer, String sql) throws CustomException {
         try (Connection conn = openConnection()) {
             PreparedStatement statement = conn.prepareStatement(sql);
             statement.setString(1, customer.firstName());
@@ -131,13 +116,46 @@ public class ChinookDAO {
             statement.setString(4, customer.country().name());
             statement.setString(5, customer.phone());
             statement.setString(6, customer.email());
-            ResultSet result = statement.executeQuery();
-            return extractCustomers(result).get(0);
+            return statement.executeUpdate();
         } catch (SQLException e) {
+            e.printStackTrace();
             throw new CustomException("Something went wrong");
         }
     }
 
+    /**
+     * Update a customer record. Replaces all the values with the ones provided by the parameter object.
+     *
+     * @param customer to update
+     * @return affected rows
+     */
+    public int updateCustomer(Customer customer) throws CustomException {
+        String sql = "UPDATE customer " +
+                "SET first_name=?, last_name=?, postal_code=?, country=?, phone=?, email=? " +
+                "WHERE customer_id=?";
+
+        try (Connection conn = openConnection()) {
+            PreparedStatement statement = conn.prepareStatement(sql);
+            statement.setString(1, customer.firstName());
+            statement.setString(2, customer.lastName());
+            statement.setString(3, customer.postalCode());
+            statement.setString(4, customer.country().name());
+            statement.setString(5, customer.phone());
+            statement.setString(6, customer.email());
+            statement.setInt(7, customer.id());
+            return statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new CustomException("Something went wrong");
+        }
+    }
+
+
+    /**
+     * Get the country which contains the highest amount of customers.
+     *
+     * @return CustomerCountry containing the information.
+     */
     public CustomerCountry getCountryWithMostCustomers() throws CustomException {
         String sql = "SELECT country " +
                 "FROM customer GROUP BY customer.country " +
@@ -155,10 +173,16 @@ public class ChinookDAO {
         }
     }
 
+    /**
+     * Get information on who of the customers has spent the most money by counting the invoice totals.
+     *
+     * @return CustomerSpender containing the information.
+     */
     public CustomerSpender getHighestSpendingCustomer() throws CustomException {
         String sql = "SELECT customer.customer_id, first_name, last_name, SUM(invoice.total) AS total " +
                 "FROM customer " +
                 "LEFT JOIN invoice ON customer.customer_id = invoice.customer_id " +
+                "WHERE total>0 " +
                 "GROUP BY customer.customer_id " +
                 "ORDER BY total DESC " +
                 "LIMIT 1 ";
@@ -170,13 +194,19 @@ public class ChinookDAO {
             return new CustomerSpender(
                     result.getInt("customer_id"),
                     result.getString("first_name") + " " + result.getString("last_name"),
-                    result.getInt("total")
+                    result.getFloat("total")
             );
         } catch (SQLException e) {
             throw new CustomException("Something went wrong");
         }
     }
 
+    /**
+     * Get a genre which the customer has bought most tracks in.
+     *
+     * @param forCustomer which to get the genre for
+     * @return CustomerGenre containing the information.
+     */
     public CustomerGenre getMostPopularGenre(Customer forCustomer) throws CustomException {
         String sql = "SELECT track.genre_id, genre.name, COUNT(track.genre_id) AS genrecount FROM customer " +
                 "LEFT JOIN invoice ON customer.customer_id=invoice.customer_id " +
