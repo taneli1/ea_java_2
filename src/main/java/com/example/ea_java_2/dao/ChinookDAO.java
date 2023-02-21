@@ -3,6 +3,8 @@ package com.example.ea_java_2.dao;
 import com.example.ea_java_2.exception.CustomException;
 import com.example.ea_java_2.models.Customer;
 import com.example.ea_java_2.models.CustomerCountry;
+import com.example.ea_java_2.models.CustomerGenre;
+import com.example.ea_java_2.models.CustomerSpender;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Component;
@@ -147,14 +149,14 @@ public class ChinookDAO {
             if (result.next()) {
                 return new CustomerCountry(result.getString("country"));
             }
-            throw new CustomException("No result");
+            throw new CustomException("No country found");
         } catch (SQLException e) {
             throw new CustomException("Something went wrong");
         }
     }
 
-    public Customer getHighestSpendingCustomer() throws CustomException {
-        String sql = "SELECT customer.customer_id, first_name, last_name, country, postal_code, phone, email, SUM(invoice.total) AS total " +
+    public CustomerSpender getHighestSpendingCustomer() throws CustomException {
+        String sql = "SELECT customer.customer_id, first_name, last_name, SUM(invoice.total) AS total " +
                 "FROM customer " +
                 "LEFT JOIN invoice ON customer.customer_id = invoice.customer_id " +
                 "GROUP BY customer.customer_id " +
@@ -164,14 +166,19 @@ public class ChinookDAO {
         try (Connection conn = openConnection()) {
             PreparedStatement statement = conn.prepareStatement(sql);
             ResultSet result = statement.executeQuery();
-            return extractCustomers(result).get(0);
+            result.next();
+            return new CustomerSpender(
+                    result.getInt("customer_id"),
+                    result.getString("first_name") + " " + result.getString("last_name"),
+                    result.getInt("total")
+            );
         } catch (SQLException e) {
             throw new CustomException("Something went wrong");
         }
     }
 
-    public Pair<Customer, String> getMostPopularGenre(Customer forCustomer) throws CustomException {
-        String sql = "SELECT customer.customer_id,first_name, last_name, country, postal_code, phone, email, track.genre_id, genre.name, COUNT(track.genre_id) AS genrecount FROM customer " +
+    public CustomerGenre getMostPopularGenre(Customer forCustomer) throws CustomException {
+        String sql = "SELECT track.genre_id, genre.name, COUNT(track.genre_id) AS genrecount FROM customer " +
                 "LEFT JOIN invoice ON customer.customer_id=invoice.customer_id " +
                 "LEFT JOIN invoice_line ON invoice_line.invoice_id=invoice.invoice_id " +
                 "LEFT JOIN track ON track.track_id=invoice_line.track_id " +
@@ -186,16 +193,10 @@ public class ChinookDAO {
             statement.setInt(1, forCustomer.id());
             ResultSet result = statement.executeQuery();
             result.next();
-            Customer c = new Customer(
-                    result.getInt("customer_id"),
-                    result.getString("first_name"),
-                    result.getString("last_name"),
-                    result.getString("postal_code"),
-                    new CustomerCountry(result.getString("country")),
-                    result.getString("phone"),
-                    result.getString("email")
+            return new CustomerGenre(
+                    result.getInt("genre_id"),
+                    result.getString("name")
             );
-            return Pair.of(c, result.getString("name"));
         } catch (SQLException e) {
             throw new CustomException("Something went wrong");
         }
